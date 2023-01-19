@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Multiplayer Game</title>
+    <style>
+        /* styles for the game
+        #groups,
+        #game {
+            display: none;
+        }
+
+        #leaderboard {
+            display: none;
+        } */
+    </style>
+</head>
+
+<body>
+    <h1>Multiplayer Game</h1>
+    <div id="groups">
+        <h2>Available Groups</h2>
+        <ul id="group-list"></ul>
+        <form id="create-group">
+            <label for="group-name">Group Name:</label>
+            <input type="text" id="group-name" name="group-name">
+            <button type="submit">Create Group</button>
+        </form>
+        <form id="join-group">
+            <label for="group-id">Group ID:</label>
+            <input type="text" id="group-id" name="group-id">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username">
+            <button type="submit">Join Group</button>
+        </form>
+    </div>
+    <div id="game">
+        <h2>Game</h2>
+        <div id="timer"></div>
+        <button id="play-button">Play</button>
+        <div id="score"></div>
+    </div>
+    <div id="leaderboard">
+        <h2>Leaderboard</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody id="leaderboard-list"></tbody>
+        </table>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const groupList = document.getElementById('group-list');
+        const createGroupForm = document.getElementById('create-group');
+        const joinGroupForm = document.getElementById('join-group');
+        const gameDiv = document.getElementById('game');
+        const playButton = document.getElementById('play-button');
+        const scoreDiv = document.getElementById('score');
+        const timerDiv = document.getElementById('timer');
+        const leaderboardDiv = document.getElementById('leaderboard');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        let groupId;
+        let username;
+        let score = 0;
+        let timer;
+
+        // Get available groups from server
+        socket.emit('get groups');
+
+        socket.on('groups', (groups) => {
+            groups.forEach((group) => {
+                const groupItem = document.createElement('li');
+                groupItem.innerHTML = group.name;
+                groupList.appendChild(groupItem);
+            });
+        });
+
+        // Create a new group
+        createGroupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const groupName = document.getElementById('group-name').value;
+            socket.emit('create group', groupName);
+        });
+        // Join a group
+        joinGroupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            groupId = document.getElementById('group-id').value;
+            username = document.getElementById('username').value;
+            socket.emit('join group', groupId, username);
+        });
+
+        // Show game when group has enough players
+        socket.on('start game', () => {
+            groupList.style.display = 'none';
+            createGroupForm.style.display = 'none';
+            joinGroupForm.style.display = 'none';
+            gameDiv.style.display = 'block';
+            scoreDiv.innerHTML = `Score: ${score}`;
+            startTimer();
+        });
+
+        // Play button updates score
+        playButton.addEventListener('click', () => {
+            score++;
+            scoreDiv.innerHTML = `score: ${score}`;
+            socket.emit('update score', groupId, score);
+        });
+
+        // Update leaderboard
+        socket.on('update leaderboard', (leaderboard) => {
+            leaderboardList.innerHTML = '';
+            leaderboard.forEach((player) => {
+                const playerItem = document.createElement('tr');
+                playerItem.innerHTML = `<td>${player.username}</td><td>${player.score}</td>`;
+                leaderboardList.appendChild(playerItem);
+            });
+        });
+
+        // End game and show leaderboard
+        socket.on('end game', (leaderboard) => {
+            clearInterval(timer);
+            timerDiv.innerHTML = '';
+            gameDiv.style.display = 'none';
+            leaderboardDiv.style.display = 'block';
+            leaderboardList.innerHTML = '';
+            leaderboard.forEach((player) => {
+                const playerItem = document.createElement('tr');
+                playerItem.innerHTML = `<td>${player.username}</td><td>${player.score}</td>`;
+                leaderboardList.appendChild(playerItem);
+            });
+        });
+
+        function startTimer() {
+            let timeLeft = 15;
+            timerDiv.innerHTML = `Time left: ${timeLeft} seconds`;
+            timer = setInterval(() => {
+                timeLeft--;
+                timerDiv.innerHTML = ` Time left: ${timeLeft} seconds`;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    socket.emit('end game', groupId);
+                }
+            }, 1000);
+        }
+    </script>
+
+</body>
+
+</html>
